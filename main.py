@@ -61,7 +61,7 @@ class Obj(dict):
         return cls.__id_obj_ref.get(id)
 
     def as_dct(self, child_level=0):
-        dct = {"id":self.__id}
+        dct = {"id":self.__id, "parent_id":self.__parent}
         if child_level > 0:
             dct.update({"childs": []})
             for child in self.__childs:
