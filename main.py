@@ -1,6 +1,7 @@
 import asyncio
 import time
 import json
+import resource
 
 
 class Obj(dict):
@@ -23,6 +24,10 @@ class Obj(dict):
     @property
     def childs(self):
         return self.__childs
+
+    @childs.setter
+    def childs(self, childs):
+        self.__childs = childs
 
     @property
     def listeners(self):
@@ -62,6 +67,8 @@ class Obj(dict):
 
     def as_dct(self, child_level=0):
         dct = {"id":self.__id, "parent_id":self.__parent}
+        dct.update(self)
+        
         if child_level > 0:
             dct.update({"childs": []})
             for child in self.__childs:
@@ -143,9 +150,9 @@ class Protocol(asyncio.protocols.Protocol):
 
         resp = {"client_id": client_id, "cmd": cmd, "status": True}
         
-        if references is not None:
+        if references:
             resp["references"] = references
-        if meta is not None:
+        if meta:
             resp["meta"] = meta
         if request_id is not None:
             resp["request_id"] = request_id
@@ -167,7 +174,7 @@ class Protocol(asyncio.protocols.Protocol):
     def crt(self, parent, data):
         new_obj = Obj()
         default_data = data.get("data")
-        if default_data is not None:
+        if default_data:
             new_obj.update(default_data)
         parent.add_child(new_obj)
         return {"id": new_obj.id, "data": new_obj.as_dct()}
@@ -189,7 +196,7 @@ class Protocol(asyncio.protocols.Protocol):
 
     def mut(self, obj, data):
         obj.unlisten(self.__transport)
-        return {"id": obj.id}}
+        return {"id": obj.id}
 
     def get(self, obj, data):
         child_level = data.get("child_level", 0)
@@ -215,12 +222,14 @@ class Protocol(asyncio.protocols.Protocol):
             async def collect(obj):
                 if obj is None:
                     obj = cls.main_obj
-                for child in obj:
+                removed = set()
+                for child in obj.childs:
                     if not obj.is_alive:
-                        del obj
+                        removed.add(child)
                     else:
                         await collect(child)
                     await asyncio.sleep(0)
+                obj.childs = obj.childs.difference(removed)
 
             while True:
                 await collect(cls.main_obj)
@@ -248,6 +257,8 @@ class Server:
 
 
 async def main():
+    resource.setrlimit(resource.RLIMIT_AS, (int(1024 * 20), (1024 * 30))
+    
     host = "0.0.0.0"
     port = 15437
     protocol = Protocol
@@ -256,6 +267,5 @@ async def main():
 
     protocol.init_garbage_collector()
     await proxy_server.run_forever()
-    
 
 asyncio.run(main())
