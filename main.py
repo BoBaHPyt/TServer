@@ -69,7 +69,7 @@ class Obj(dict):
         return dct
     
     def add_child(self, child):
-        if child.__parent is not None:
+        if child.parent is not None:
             raise Exception("child already has parent")
         child.parent = self
         self.__childs.add(child)
