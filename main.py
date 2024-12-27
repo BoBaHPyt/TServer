@@ -14,6 +14,7 @@ class Obj(dict):
         self.__childs = set()
         self.__id = self.__class__.__id_counter
         self.__class__.__id_obj_ref[self.__id] = self
+        self.__parent = None
         
         self.__class__.__id_counter += 1
 
@@ -25,7 +26,9 @@ class Obj(dict):
 
     @property
     def listeners(self):
-        return self.__listeners
+        if self.__parent is None or self.__id == 0 or len(self.__listeners) > 0:
+            return self.__listeners
+        return self.__parent.listeners()
 
     @property
     def id(self):
@@ -48,8 +51,7 @@ class Obj(dict):
         return cls.__id_obj_ref.get(id)
 
     def as_dct(self, child_level=0):
-        dct = {}
-        dct.update(self)
+        dct = {"id":self.__id}
         if child_level > 0:
             dct.update({"childs": []})
             for child in self.__childs:
@@ -57,24 +59,22 @@ class Obj(dict):
         return dct
     
     def add_child(self, child):
+        if child.__parent is not None:
+            raise Exception("child already has parent")
+        child.__parent = self
         self.__childs.add(child)
-        for client in self.__listeners:
-            child.listen(client)
 
     def remove_child(self, child):
         self.__childs.remove(child)
 
     def listen(self, client):
         self.__listeners.add(client)
-        for child in self.__childs:
-            child.listen(client)
 
     def unlisten(self, client):
         self.__listeners.remove(client)
-        for child in self.__childs:
-            child.unlisten(client)
 
     def __del__(self, *args, **kwargs):
+        self.__parent = None
         del self.__class__.__id_obj_ref[self.__id]
         #super().__del__(self, *args, **kwargs)
 
@@ -122,22 +122,25 @@ class Protocol(asyncio.protocols.Protocol):
         meta = data.get("meta")
         request_id = data.get("request_id")
         
-        if not client_id:
+        if client_id is None:
             raise Exception("client_id is not specified or is Null")
         if id_ is None:
             raise Exception("id is not specified")
         if cmd not in self.cmds:
             raise Exception(f"cmd is not specified or not is {'/'.join(self.cmds.keys())}")
+        
         obj = Obj.get_by_id(id_)
         func = self.cmds.get(cmd)
 
         resp = {"client_id": client_id, "cmd": cmd, "status": True}
-        if references:
+        
+        if references is not None:
             resp["references"] = references
-        if meta:
+        if meta is not None:
             resp["meta"] = meta
-        if request_id:
+        if request_id is not None:
             resp["request_id"] = request_id
+        
         try:
             resp.update(func(obj, data))
             if resp.get("data") or resp.get("meta"):
@@ -153,9 +156,9 @@ class Protocol(asyncio.protocols.Protocol):
         return data
 
     def crt(self, parent, data):
-        default_data = data.get("data")
         new_obj = Obj()
-        if default_data:
+        default_data = data.get("data")
+        if default_data is not None:
             new_obj.update(default_data)
         parent.add_child(new_obj)
         return {"id": new_obj.id, "data": new_obj.as_dct()}
@@ -177,7 +180,7 @@ class Protocol(asyncio.protocols.Protocol):
 
     def mut(self, obj, data):
         obj.unlisten(self.__transport)
-        return {"id": obj.id, "data": {"msg": "exploit successfully initialized, zeroing out bank accounts"}}
+        return {"id": obj.id}}
 
     def get(self, obj, data):
         child_level = data.get("child_level", 0)
