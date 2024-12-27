@@ -14,7 +14,7 @@ class Obj(dict):
         self.__childs = set()
         self.__id = self.__class__.__id_counter
         self.__class__.__id_obj_ref[self.__id] = self
-        self.__parent = None
+        self.__parent = -1
         
         self.__class__.__id_counter += 1
 
@@ -26,9 +26,9 @@ class Obj(dict):
 
     @property
     def listeners(self):
-        if self.__parent is None or self.__id == 0 or len(self.__listeners) > 0:
+        if self.__parent == -1 or self.__id == 0 or len(self.__listeners) > 0:
             return self.__listeners
-        return self.__parent.listeners()
+        return self.parent.listeners()
 
     @property
     def id(self):
@@ -46,6 +46,16 @@ class Obj(dict):
     def is_alive(self):
         return self.life_time < 0 or self.life_time + self.created_time >= time.time()
 
+    @property
+    def parent(self):
+        if self.__parent == -1:
+            return None
+        return get_by_id(self.__parent)
+        
+    @parent.setter
+    def parent(self, value):
+        self.__parent = value.id
+
     @classmethod
     def get_by_id(cls, id):
         return cls.__id_obj_ref.get(id)
@@ -61,7 +71,7 @@ class Obj(dict):
     def add_child(self, child):
         if child.__parent is not None:
             raise Exception("child already has parent")
-        child.__parent = self
+        child.parent = self
         self.__childs.add(child)
 
     def remove_child(self, child):
@@ -74,7 +84,6 @@ class Obj(dict):
         self.__listeners.remove(client)
 
     def __del__(self, *args, **kwargs):
-        self.__parent = None
         del self.__class__.__id_obj_ref[self.__id]
         #super().__del__(self, *args, **kwargs)
 
