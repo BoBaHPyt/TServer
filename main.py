@@ -257,7 +257,7 @@ class Server:
 
 
 async def main():
-    resource.setrlimit(resource.RLIMIT_AS, (int(1024 * 20), (1024 * 30))
+    resource.setrlimit(resource.RLIMIT_AS, (int(1024 * 20), (1024 * 30)))
     
     host = "0.0.0.0"
     port = 15437
