@@ -12,7 +12,7 @@ class Obj(dict):
         self.__life_time = 3600
         self.__created_time = time.time()
         self.__listeners = set()
-        self.__childs = set()
+        self.__childs = list()
         self.__id = self.__class__.__id_counter
         self.__class__.__id_obj_ref[self.__id] = self
         self.__parent = -1
@@ -24,10 +24,6 @@ class Obj(dict):
     @property
     def childs(self):
         return self.__childs
-
-    @childs.setter
-    def childs(self, childs):
-        self.__childs = childs
 
     @property
     def listeners(self):
@@ -79,7 +75,7 @@ class Obj(dict):
         if child.parent is not None:
             raise Exception("child already has parent")
         child.parent = self
-        self.__childs.add(child)
+        self.__childs.append(child)
 
     def remove_child(self, child):
         self.__childs.remove(child)
@@ -226,14 +222,14 @@ class Protocol(asyncio.protocols.Protocol):
                 for child in obj.childs:
                     if not obj.is_alive:
                         removed.add(child)
-                    else:
-                        await collect(child)
                     await asyncio.sleep(0)
-                obj.childs = obj.childs.difference(removed)
+                    
+                for rchild in removed:
+                    obj.remove_child(rchild)
 
             while True:
                 await collect(cls.main_obj)
-                await asyncio.sleep(1)
+                await asyncio.sleep(60)
                 
         ioloop = asyncio.get_event_loop()
         ioloop.create_task(garbage_collector(cls))
